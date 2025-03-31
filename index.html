@@ -1,0 +1,249 @@
+import tkinter as tk
+from tkinter import messagebox, scrolledtext
+import random
+import json
+import os
+
+class TextMemorizationApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("한국어 교육과정 텍스트 암기 프로그램")
+        self.root.geometry("800x600")
+        self.root.configure(bg="#f0f0f0")
+        
+        # 데이터 저장
+        self.texts_to_memorize = []
+        self.current_text_index = 0
+        self.mastered_texts = set()
+        
+        # 데이터 파일 경로
+        self.data_file = "memorization_data.json"
+        
+        # 데이터 로드
+        self.load_data()
+        
+        # 기본 UI 설정
+        self.create_widgets()
+        self.show_current_text()
+    
+    def load_data(self):
+        # 기본 볼드 텍스트 샘플 (실제로는 이미지에서 추출한 볼드 텍스트 사용)
+        default_texts = [
+            "영어 의사소통 역량",
+            "영어 교육의 궁극적 지향점",
+            "다양한 언어 및 문화 배경을 가진 사람들의 주요 의사소통 수단",
+            "듣기, 말하기, 읽기, 쓰기",
+            "viewing",
+            "presenting",
+        ]
+        
+        # 저장된 데이터가 있으면 로드
+        if os.path.exists(self.data_file):
+            try:
+                with open(self.data_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.texts_to_memorize = data.get("texts", default_texts)
+                    self.mastered_texts = set(data.get("mastered", []))
+            except:
+                self.texts_to_memorize = default_texts
+        else:
+            self.texts_to_memorize = default_texts
+    
+    def save_data(self):
+        data = {
+            "texts": self.texts_to_memorize,
+            "mastered": list(self.mastered_texts)
+        }
+        with open(self.data_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    def create_widgets(self):
+        # 상단 프레임
+        top_frame = tk.Frame(self.root, bg="#f0f0f0")
+        top_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        # 제목
+        title_label = tk.Label(top_frame, text="교육과정 설계의 개요 - 중요 개념 암기", 
+                              font=("맑은 고딕", 16, "bold"), bg="#f0f0f0")
+        title_label.pack(pady=10)
+        
+        # 설명
+        instruction_label = tk.Label(top_frame, 
+                                   text="아래 텍스트를 암기한 후 '확인' 버튼을 눌러 진행하세요.\n텍스트를 충분히 외웠다면 '암기 완료' 버튼을 누르세요.",
+                                   font=("맑은 고딕", 10), bg="#f0f0f0")
+        instruction_label.pack(pady=5)
+        
+        # 가운데 프레임 (텍스트 표시)
+        self.middle_frame = tk.Frame(self.root, bg="white", padx=20, pady=20)
+        self.middle_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # 텍스트 표시 영역
+        self.text_display = tk.Label(self.middle_frame, 
+                                    text="", 
+                                    font=("맑은 고딕", 14, "bold"),
+                                    wraplength=700,
+                                    justify=tk.CENTER,
+                                    bg="white")
+        self.text_display.pack(expand=True)
+        
+        # 하단 프레임 (버튼)
+        bottom_frame = tk.Frame(self.root, bg="#f0f0f0")
+        bottom_frame.pack(fill=tk.X, padx=20, pady=20)
+        
+        # 버튼 프레임
+        button_frame = tk.Frame(bottom_frame, bg="#f0f0f0")
+        button_frame.pack()
+        
+        # 이전 버튼
+        self.prev_btn = tk.Button(button_frame, text="이전", 
+                                command=self.show_prev_text,
+                                width=10, height=2,
+                                font=("맑은 고딕", 10))
+        self.prev_btn.grid(row=0, column=0, padx=10)
+        
+        # 다음 버튼
+        self.next_btn = tk.Button(button_frame, text="다음", 
+                                command=self.show_next_text,
+                                width=10, height=2,
+                                font=("맑은 고딕", 10))
+        self.next_btn.grid(row=0, column=1, padx=10)
+        
+        # 암기 완료 버튼
+        self.mastered_btn = tk.Button(button_frame, text="암기 완료", 
+                                     command=self.mark_as_mastered,
+                                     width=10, height=2,
+                                     font=("맑은 고딕", 10, "bold"),
+                                     bg="#4CAF50", fg="white")
+        self.mastered_btn.grid(row=0, column=2, padx=10)
+        
+        # 텍스트 가리기/보기 버튼
+        self.toggle_btn = tk.Button(button_frame, text="텍스트 가리기", 
+                                  command=self.toggle_text_visibility,
+                                  width=10, height=2,
+                                  font=("맑은 고딕", 10))
+        self.toggle_btn.grid(row=0, column=3, padx=10)
+        
+        # 텍스트 추가 버튼
+        self.add_btn = tk.Button(button_frame, text="텍스트 추가", 
+                               command=self.show_add_text_dialog,
+                               width=10, height=2,
+                               font=("맑은 고딕", 10))
+        self.add_btn.grid(row=0, column=4, padx=10)
+        
+        # 진행 상황 표시
+        self.progress_label = tk.Label(bottom_frame, 
+                                     text="", 
+                                     font=("맑은 고딕", 10),
+                                     bg="#f0f0f0")
+        self.progress_label.pack(pady=10)
+        
+        # 텍스트 보이기 상태
+        self.text_visible = True
+    
+    def show_current_text(self):
+        if not self.texts_to_memorize:
+            self.text_display.config(text="추가된 텍스트가 없습니다.\n'텍스트 추가' 버튼을 눌러 암기할 텍스트를 추가하세요.")
+            return
+        
+        current_text = self.texts_to_memorize[self.current_text_index]
+        
+        # 텍스트가 가려져 있으면 별표로 표시
+        if not self.text_visible:
+            self.text_display.config(text="*" * len(current_text))
+        else:
+            self.text_display.config(text=current_text)
+        
+        # 진행 상황 업데이트
+        total = len(self.texts_to_memorize)
+        mastered = len(self.mastered_texts)
+        self.progress_label.config(text=f"진행 상황: {self.current_text_index + 1}/{total} | 암기 완료: {mastered}/{total}")
+        
+        # 암기 완료된 텍스트 표시
+        if current_text in self.mastered_texts:
+            self.text_display.config(fg="#4CAF50")  # 녹색으로 표시
+        else:
+            self.text_display.config(fg="black")
+    
+    def show_next_text(self):
+        if not self.texts_to_memorize:
+            return
+            
+        self.current_text_index = (self.current_text_index + 1) % len(self.texts_to_memorize)
+        self.show_current_text()
+    
+    def show_prev_text(self):
+        if not self.texts_to_memorize:
+            return
+            
+        self.current_text_index = (self.current_text_index - 1) % len(self.texts_to_memorize)
+        self.show_current_text()
+    
+    def toggle_text_visibility(self):
+        self.text_visible = not self.text_visible
+        
+        if self.text_visible:
+            self.toggle_btn.config(text="텍스트 가리기")
+        else:
+            self.toggle_btn.config(text="텍스트 보기")
+        
+        self.show_current_text()
+    
+    def mark_as_mastered(self):
+        if not self.texts_to_memorize:
+            return
+            
+        current_text = self.texts_to_memorize[self.current_text_index]
+        self.mastered_texts.add(current_text)
+        messagebox.showinfo("알림", f"'{current_text}'를 암기 완료로 표시했습니다!")
+        self.save_data()
+        self.show_current_text()
+    
+    def show_add_text_dialog(self):
+        # 새 창 생성
+        add_window = tk.Toplevel(self.root)
+        add_window.title("텍스트 추가")
+        add_window.geometry("600x400")
+        add_window.configure(bg="#f0f0f0")
+        
+        # 안내 텍스트
+        instruction = tk.Label(add_window, 
+                              text="암기할 텍스트를 입력하세요. 여러 텍스트는 줄바꿈으로 구분합니다.",
+                              font=("맑은 고딕", 10),
+                              bg="#f0f0f0")
+        instruction.pack(pady=10)
+        
+        # 텍스트 입력 영역
+        text_input = scrolledtext.ScrolledText(add_window, 
+                                             width=60, 
+                                             height=15,
+                                             font=("맑은 고딕", 11))
+        text_input.pack(padx=20, pady=10)
+        
+        # 현재 텍스트 목록을 미리 채우기
+        text_input.insert(tk.END, "\n".join(self.texts_to_memorize))
+        
+        # 저장 버튼
+        def save_texts():
+            text_content = text_input.get("1.0", tk.END).strip()
+            if text_content:
+                self.texts_to_memorize = [t.strip() for t in text_content.split("\n") if t.strip()]
+                self.current_text_index = 0
+                self.save_data()
+                self.show_current_text()
+                add_window.destroy()
+                messagebox.showinfo("성공", "텍스트가 성공적으로 저장되었습니다!")
+            else:
+                messagebox.showwarning("경고", "텍스트를 입력해주세요!")
+        
+        save_btn = tk.Button(add_window, 
+                           text="저장", 
+                           command=save_texts,
+                           width=10, height=2, 
+                           font=("맑은 고딕", 10, "bold"),
+                           bg="#2196F3", fg="white")
+        save_btn.pack(pady=10)
+
+if __name__ == "__main__":
+    root = tk.Root()
+    app = TextMemorizationApp(root)
+    root.mainloop()
